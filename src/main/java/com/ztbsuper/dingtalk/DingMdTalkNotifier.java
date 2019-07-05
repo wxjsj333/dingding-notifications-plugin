@@ -1,5 +1,7 @@
 package com.ztbsuper.dingtalk;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.Lists;
 import com.ztbsuper.Messages;
 import hudson.Extension;
 import hudson.FilePath;
@@ -13,6 +15,7 @@ import hudson.tasks.Notifier;
 import hudson.tasks.Publisher;
 import hudson.util.FormValidation;
 import jenkins.tasks.SimpleBuildStep;
+import org.apache.commons.collections.IteratorUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.jenkinsci.Symbol;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -20,31 +23,30 @@ import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import ren.wizard.dingtalkclient.DingTalkClient;
 import ren.wizard.dingtalkclient.message.DingMessage;
-import ren.wizard.dingtalkclient.message.LinkMessage;
+import ren.wizard.dingtalkclient.message.MarkdownMessage;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * @author uyangjie
  */
-public class DingTalkNotifier extends Notifier implements SimpleBuildStep {
+public class DingMdTalkNotifier extends Notifier implements SimpleBuildStep {
 
     private String accessToken;
-    private String notifyPeople;
     private String title;
-    private String message;
-    private String imageUrl;
-    private String jenkinsUrl;
+    private String content;
+    private String atMobiles;
+    private Boolean isAtAll;
 
     @DataBoundConstructor
-    public DingTalkNotifier(String accessToken, String notifyPeople, String title, String message, String imageUrl, String jenkinsUrl) {
+    public DingMdTalkNotifier(String accessToken, String title, String content, String atMobiles, Boolean isAtAll) {
         this.accessToken = accessToken;
-        this.notifyPeople = notifyPeople;
         this.title = title;
-        this.message = message;
-        this.imageUrl = imageUrl;
-        this.jenkinsUrl = jenkinsUrl;
+        this.content = content;
+        this.atMobiles = atMobiles;
+        this.isAtAll = isAtAll == null ? false : isAtAll;
     }
 
     public String getAccessToken() {
@@ -56,15 +58,6 @@ public class DingTalkNotifier extends Notifier implements SimpleBuildStep {
         this.accessToken = accessToken;
     }
 
-    public String getNotifyPeople() {
-        return notifyPeople;
-    }
-
-    @DataBoundSetter
-    public void setNotifyPeople(String notifyPeople) {
-        this.notifyPeople = notifyPeople;
-    }
-
     public String getTitle() {
         return title;
     }
@@ -74,44 +67,47 @@ public class DingTalkNotifier extends Notifier implements SimpleBuildStep {
         this.title = title == null ? null : title.trim();
     }
 
-    public String getMessage() {
-        return message;
+    public String getContent() {
+        return content;
     }
 
     @DataBoundSetter
-    public void setMessage(String message) {
-        this.message = message;
+    public void setContent(String content) {
+        this.content = content == null ? null : content.trim();
     }
 
-    public String getImageUrl() {
-        return imageUrl;
-    }
-
-    @DataBoundSetter
-    public void setImageUrl(String imageUrl) {
-        this.imageUrl = imageUrl;
-    }
-
-    public String getJenkinsUrl() {
-        return jenkinsUrl;
+    public String getAtMobiles() {
+        return atMobiles;
     }
 
     @DataBoundSetter
-    public void setJenkinsUrl(String jenkinsUrl) {
-        this.jenkinsUrl = jenkinsUrl;
+    public void setAtMobiles(String atMobiles) {
+        this.atMobiles = atMobiles == null ? null : atMobiles.trim();
+    }
+
+    public Boolean getIsAtAll() {
+        return isAtAll;
+    }
+
+    @DataBoundSetter
+    public void setIsAtAll(Boolean isAtAll) {
+        this.isAtAll = isAtAll;
     }
 
     @Override
     public void perform(@Nonnull Run<?, ?> run, @Nonnull FilePath filePath, @Nonnull Launcher launcher, @Nonnull TaskListener taskListener) throws InterruptedException, IOException {
-        String buildInfo = run.getFullDisplayName();
-        if (!StringUtils.isBlank(message)) {
-            String messageTitle = !StringUtils.isBlank(title) ? title : message;
-            sendMessage(LinkMessage.builder()
-                    .title(buildInfo.concat(":").concat(messageTitle))
-                    .picUrl(imageUrl)
-                    .text(message)
-                    .messageUrl((jenkinsUrl.endsWith("/") ? jenkinsUrl : jenkinsUrl + "/") + run.getUrl())
-                    .build());
+        if (!StringUtils.isBlank(content)) {
+            List<String> list = Lists.newArrayList();
+            if(StringUtils.isNotBlank(atMobiles)){
+                Iterable<String> split = Splitter.on(",").split(atMobiles);
+                list = IteratorUtils.toList(split.iterator());
+            }
+            sendMessage(MarkdownMessage.builder()
+                                       .title(title)
+                                       .item(content)
+                                       .atMobiles(list)
+                                       .isAtAll(isAtAll)
+                                       .build());
         }
     }
 
@@ -129,7 +125,7 @@ public class DingTalkNotifier extends Notifier implements SimpleBuildStep {
         return BuildStepMonitor.NONE;
     }
 
-    @Symbol("dingTalk")
+    @Symbol("dingMdTalk")
     @Extension
     public static final class DescriptorImpl extends BuildStepDescriptor<Publisher> {
 
